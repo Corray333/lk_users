@@ -14,6 +14,8 @@ func main() {
 
 	app.Put("/new-user", users.NewUser)
 	app.Put("/confirm-user", users.ConfirmUser)
+	app.Put("/log-in", users.LogIn)
+	app.Put("/authorize", users.Authorize)
 
 	log.Fatal(app.Listen("127.0.0.1:3000"))
 }
