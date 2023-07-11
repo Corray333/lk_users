@@ -12,10 +12,11 @@ func main() {
 	database.Connect()
 	app := fiber.New()
 
-	app.Put("/new-user", users.NewUser)
-	app.Put("/confirm-user", users.ConfirmUser)
-	app.Put("/log-in", users.LogIn)
-	app.Put("/authorize", users.Authorize)
+	app.Post("/new-user", users.NewUser)
+	app.Post("/confirm-user", users.ConfirmUser)
+	app.Post("/log-in", users.LogIn)
+	app.Post("/authorize", users.Authorize)
+	app.Post("/send-post", users.SendPost)
 
 	log.Fatal(app.Listen("127.0.0.1:3000"))
 }
