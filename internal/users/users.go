@@ -26,10 +26,11 @@ func NewUser(c *fiber.Ctx) error {
 	// Parse request data
 	user := database.User{}
 	c.BodyParser(&user)
-	user.UID = primitive.NewObjectID()
+	// user.UID = primitive.NewObjectID()
 	user.Friends = []primitive.ObjectID{}
 	user.Groups = []primitive.ObjectID{}
-	user.Posts = []primitive.ObjectID{}
+	user.Accessed = []primitive.ObjectID{}
+	user.Created = []primitive.ObjectID{}
 	user.Confirmation = rand.Intn(9000) + 1000
 	user.Password = fmt.Sprintf("%x", sha256.Sum256([]byte(user.Password)))
 
@@ -98,6 +99,8 @@ func ConfirmUser(c *fiber.Ctx) error {
 }
 
 func LogIn(c *fiber.Ctx) error {
+
+	// Parse request
 	type Request struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`
@@ -105,19 +108,24 @@ func LogIn(c *fiber.Ctx) error {
 	var req Request
 	c.BodyParser(&req)
 
+	// Find user by email
 	var user database.User
 	err := database.UsersDB.FindOne(context.TODO(), bson.D{{"email", req.Email}}).Decode(&user)
 	if err != nil {
 		return c.SendStatus(http.StatusBadGateway)
 	}
+
+	// If user isn't confirmed, ask user, to confirm email
 	if user.Confirmation != 0 {
 		return c.SendString("Confirm your email!")
 	}
+
+	// Check password
 	if user.Password == fmt.Sprintf("%x", sha256.Sum256([]byte(req.Password))) {
 		// JWT signing
 		token := jwt.New(jwt.SigningMethodHS256)
 		claims := token.Claims.(jwt.MapClaims)
-		claims["exp"] = time.Now().Add(10 * time.Minute).Unix()
+		claims["exp"] = time.Now().Add(time.Hour).Unix()
 		claims["username"] = user.Username
 		tokenStr, err := token.SignedString(Secret)
 		if err != nil {
@@ -129,6 +137,8 @@ func LogIn(c *fiber.Ctx) error {
 }
 
 func Authorize(c *fiber.Ctx) error {
+
+	// Parse request
 	type Request struct {
 		Username string `json:"username"`
 		Token    string `json:"token"`
@@ -136,31 +146,15 @@ func Authorize(c *fiber.Ctx) error {
 	var req Request
 	c.BodyParser(&req)
 
-	// token, err := jwt.Parse(req.Token, func(token *jwt.Token) (interface{}, error) {
-	// 	_, ok := token.Method.(*jwt.SigningMethodHMAC)
-	// 	if !ok {
-	// 		c.SendStatus(http.StatusUnauthorized)
-	// 	}
-	// 	return "", nil
-	// })
-	// if err != nil {
-	// 	return c.SendStatus(http.StatusUnauthorized)
-	// }
-	// if token.Valid {
-	// 	return c.SendStatus(http.StatusAccepted)
-	// }
-	// return c.SendStatus(http.StatusUnauthorized)
-
+	// Parse jwt
 	token, _ := jwt.Parse(req.Token, func(token *jwt.Token) (interface{}, error) {
-		// Don't forget to validate the alg is what you expect:
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
 		}
-
-		// hmacSampleSecret is a []byte containing your secret, e.g. []byte("my_secret_key")
 		return Secret, nil
 	})
 
+	// Check, if author is the same, as in jwt
 	if claims, _ := token.Claims.(jwt.MapClaims); token.Valid {
 		if claims["username"] == req.Username {
 			return c.SendStatus(http.StatusAccepted)
